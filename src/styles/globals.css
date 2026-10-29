@@ -1,0 +1,176 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark light;
+  --font-display: 'Instrument Serif', ui-serif, Georgia, serif;
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'Fragment Mono', ui-monospace, 'SFMono-Regular', monospace;
+
+  /* Supaste tokens */
+  --brand-primary: #5f61ed;
+  --brand-blue: #006fff;
+  --brand-lavender: #9191ff;
+  --ink: #0d0d0d;
+  --paper: #f7f7f7;
+
+  /* Sky + grass gradient stops lifted from the actual hero image */
+  --sky-top: #1b7bd6;
+  --sky-mid: #79bfff;
+  --sky-low: #cfeaff;
+  --sky-glow: #ffd8a8;
+
+  /* UI surfaces (theme aware) */
+  --surface: rgba(13, 13, 13, 0.55);
+  --surface-strong: rgba(13, 13, 13, 0.75);
+  --surface-raised: rgba(255, 255, 255, 0.06);
+  --border-soft: rgba(255, 255, 255, 0.08);
+  --border-ring: rgba(145, 145, 255, 0.25);
+  --text: #ffffff;
+  --text-mute: rgba(255, 255, 255, 0.6);
+  --text-faint: rgba(255, 255, 255, 0.4);
+}
+
+html.light {
+  color-scheme: light;
+  --surface: rgba(255, 255, 255, 0.65);
+  --surface-strong: rgba(255, 255, 255, 0.85);
+  --surface-raised: rgba(13, 13, 13, 0.04);
+  --border-soft: rgba(13, 13, 13, 0.08);
+  --border-ring: rgba(95, 97, 237, 0.2);
+  --text: #0d0d0d;
+  --text-mute: rgba(13, 13, 13, 0.6);
+  --text-faint: rgba(13, 13, 13, 0.4);
+}
+
+* { box-sizing: border-box; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+html, body, #root { height: 100%; margin: 0; padding: 0; }
+body {
+  font-family: var(--font-sans);
+  color: var(--text);
+  background-color: #0b1a2e;
+  overflow: hidden;
+}
+
+/* The dreamy hills wallpaper lives on a fixed layer so it stays put while content scrolls. */
+.wallpaper {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg,
+      var(--sky-top) 0%,
+      var(--sky-mid) 32%,
+      var(--sky-low) 55%,
+      var(--sky-glow) 72%,
+      rgba(255, 216, 168, 0) 85%
+    );
+}
+.wallpaper::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url('/bg/hills.jpeg');
+  background-size: cover;
+  background-position: center 55%;
+  background-repeat: no-repeat;
+}
+/* The grain overlay — 4% noise, replicated via tiny inline SVG so no extra asset needed */
+.grain {
+  position: fixed; inset: 0; z-index: 1; pointer-events: none;
+  opacity: .35; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' seed='7'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.6 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  background-size: 160px 160px;
+}
+/* Soft indigo glow pooled behind panels */
+.aurora {
+  position: fixed; inset: -10% -10% -10% -10%; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(60% 50% at 20% 10%, rgba(95, 97, 237, 0.35), transparent 60%),
+    radial-gradient(55% 45% at 85% 15%, rgba(145, 145, 255, 0.28), transparent 60%),
+    radial-gradient(50% 40% at 50% 100%, rgba(255, 216, 168, 0.25), transparent 60%);
+  filter: blur(30px);
+}
+
+/* Glass panels */
+.glass {
+  background: var(--surface);
+  backdrop-filter: blur(24px) saturate(140%);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
+  border: 1px solid var(--border-soft);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.08) inset,
+    0 20px 60px -20px rgba(0, 0, 0, 0.45);
+}
+.glass-strong {
+  background: var(--surface-strong);
+  backdrop-filter: blur(32px) saturate(160%);
+  -webkit-backdrop-filter: blur(32px) saturate(160%);
+  border: 1px solid var(--border-soft);
+}
+
+/* Hero display text — Instrument Serif italic for the signature phrase */
+.display { font-family: var(--font-display); font-weight: 400; letter-spacing: -0.02em; }
+.display-italic { font-family: var(--font-display); font-style: italic; letter-spacing: -0.02em; }
+.mono { font-family: var(--font-mono); }
+
+/* Agent ring — gold gradient stroke, slow rotation */
+.agent-ring {
+  position: absolute; inset: -3px; border-radius: inherit;
+  background: conic-gradient(from 180deg,
+    rgba(255, 196, 100, 0) 0deg,
+    rgba(255, 196, 100, 0.9) 90deg,
+    rgba(255, 230, 170, 1) 180deg,
+    rgba(255, 196, 100, 0.9) 270deg,
+    rgba(255, 196, 100, 0) 360deg);
+  animation: ring-spin 4s linear infinite;
+  mask: radial-gradient(circle, transparent 55%, black 56%);
+  -webkit-mask: radial-gradient(circle, transparent 55%, black 56%);
+}
+@keyframes ring-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .agent-ring { animation: none; background: rgba(255, 196, 100, 0.6); }
+}
+
+/* Scrollbars — thin, muted */
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: var(--border-soft); border-radius: 10px; }
+*::-webkit-scrollbar-thumb:hover { background: var(--border-ring); }
+
+/* Focus ring */
+:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Button base */
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 16px; border-radius: 999px;
+  font-weight: 500; font-size: 14px; letter-spacing: -0.01em;
+  transition: transform .12s ease, background .18s ease, border-color .18s ease;
+  cursor: pointer; user-select: none;
+}
+.btn-primary {
+  background: #0d0d0d; color: #fff; border: 1px solid rgba(255,255,255,0.1);
+}
+.btn-primary:hover { transform: translateY(-1px); background: #1a1a1a; }
+.btn-ghost {
+  background: transparent; color: var(--text); border: 1px solid var(--border-soft);
+}
+.btn-ghost:hover { background: var(--surface-raised); }
+
+/* Chip */
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 999px;
+  background: var(--surface-raised); border: 1px solid var(--border-soft);
+  font-size: 12px; color: var(--text-mute);
+}
+
+/* Task row completion stroke */
+.strike { text-decoration: line-through; color: var(--text-faint); }
