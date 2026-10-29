@@ -3,6 +3,7 @@ package com.hush.todo
 import android.app.Application
 import com.hush.todo.data.HushDatabase
 import com.hush.todo.data.Repo
+import com.hush.todo.data.purgeDemoTasks
 import com.hush.todo.data.seedIfEmpty
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -20,7 +21,11 @@ class HushApp : Application() {
         instance = this
         val db = HushDatabase.get(this)
         repo = Repo(db.tasks(), db.projects(), db.messages())
-        appScope.launch { seedIfEmpty(repo) }
+        appScope.launch {
+            seedIfEmpty(repo)
+            purgeDemoTasks(repo)
+            repo.tasksSnapshot().forEach { com.hush.todo.notify.scheduleForTask(this@HushApp, it) }
+        }
     }
 
     companion object {

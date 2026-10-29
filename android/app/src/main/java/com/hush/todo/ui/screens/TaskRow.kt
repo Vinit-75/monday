@@ -36,6 +36,8 @@ fun TaskRow(
     projectName: String?,
     projectEmoji: String?,
     onToggle: () -> Unit,
+    onSnooze: () -> Unit = {},
+    onDelete: () -> Unit = {},
     onAgentAction: (String) -> Unit,
     onApprove: () -> Unit,
 ) {
@@ -94,6 +96,8 @@ fun TaskRow(
                                 fontSize = 10.sp,
                             )
                         }
+                        Text(task.source, color = Color.White.copy(alpha = 0.4f), fontFamily = FragmentMono, fontSize = 10.sp)
+                        if (task.needsReview && !isDone) Text("needs review", color = HushColors.AgentGold, fontSize = 10.sp, fontFamily = FragmentMono)
                         if (working) Text("Agent is on it", color = HushColors.AgentGold, fontSize = 10.sp, fontFamily = FragmentMono)
                         if (needs) Text("Needs you", color = HushColors.AgentGold, fontSize = 10.sp, fontFamily = FragmentMono)
                     }
@@ -122,6 +126,8 @@ fun TaskRow(
                             onClick = { onAgentAction("research") },
                             colors = ButtonDefaults.textButtonColors(contentColor = Color.White.copy(alpha = 0.7f)),
                         ) { Text("Try again", fontSize = 11.sp, fontFamily = Inter) }
+                        TextButton(onClick = onSnooze, colors = ButtonDefaults.textButtonColors(contentColor = Color.White)) { Text("Snooze 1h", fontSize = 11.sp, fontFamily = Inter) }
+                        TextButton(onClick = onDelete, colors = ButtonDefaults.textButtonColors(contentColor = Color.White.copy(0.7f))) { Text("Delete", fontSize = 11.sp, fontFamily = Inter) }
                     }
                 }
             }

@@ -15,7 +15,7 @@ export default function ViewHeader() {
 
   if (typeof activeList === 'string') {
     const titles: Record<string, string> = {
-      today: 'Today', inbox: 'Inbox', upcoming: 'Upcoming', someday: 'Someday', completed: 'Completed',
+      today: 'Deadlines', inbox: 'Inbox', upcoming: 'Upcoming', someday: 'Someday', completed: 'Completed', review: 'Review',
     };
     const subs: Record<string, string> = {
       today: format(new Date(), 'EEEE, MMMM d'),
@@ -23,6 +23,7 @@ export default function ViewHeader() {
       upcoming: 'The next seven days',
       someday: 'Not scheduled yet',
       completed: 'Nice work',
+      review: 'Accept or reject extracted deadlines',
     };
     title = titles[activeList]; subtitle = subs[activeList];
   } else {
@@ -33,7 +34,7 @@ export default function ViewHeader() {
   }
 
   return (
-    <header className="flex shrink-0 items-end justify-between gap-4 border-b border-[color:var(--border-soft)] px-6 py-5">
+    <header className="flex shrink-0 flex-wrap items-end justify-between gap-4 border-b border-[color:var(--border-soft)] px-6 py-5">
       <div className="min-w-0">
         <div className="flex items-center gap-3">
           {emoji && <span className="text-3xl leading-none">{emoji}</span>}

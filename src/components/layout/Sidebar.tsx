@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Calendar, Inbox, Moon, Sparkles, Sun, CheckCircle2, Plus } from 'lucide-react';
+import { Calendar, Inbox, Moon, Sparkles, Sun, CheckCircle2, Plus, Settings, Mail } from 'lucide-react';
 import { db } from '../../db/db';
 import { useAppStore } from '../../stores/app';
 import clsx from 'clsx';
@@ -7,14 +7,15 @@ import { nanoid } from 'nanoid';
 import type { Project, SmartList } from '../../lib/types';
 
 export default function Sidebar() {
-  const { activeList, setActiveList, theme, toggleTheme } = useAppStore();
+  const { activeList, setActiveList, theme, toggleTheme, setSettingsOpen } = useAppStore();
+  const pendingReview = useLiveQuery(() => db.extractions.where('status').equals('pending').count(), []);
   const projects = useLiveQuery(() => db.projects.orderBy('sortOrder').toArray(), []);
   const counts = useLiveQuery(async () => {
     const all = await db.tasks.toArray();
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
     return {
-      today: all.filter((t) => t.state !== 'done' && t.due && new Date(t.due) < tomorrow).length,
+      today: all.filter((t) => t.state !== 'done' && t.due).length,
       inbox: all.filter((t) => !t.projectId && t.state !== 'done').length,
       upcoming: all.filter((t) => t.state !== 'done' && t.due && new Date(t.due) >= tomorrow).length,
       someday: all.filter((t) => t.state !== 'done' && !t.due).length,
@@ -27,10 +28,11 @@ export default function Sidebar() {
   }, []);
 
   const items: { key: SmartList; label: string; icon: typeof Inbox; count?: number }[] = [
-    { key: 'today', label: 'Today', icon: Sparkles, count: counts?.today },
+    { key: 'today', label: 'Deadlines', icon: Sparkles, count: counts?.today },
     { key: 'inbox', label: 'Inbox', icon: Inbox, count: counts?.inbox },
     { key: 'upcoming', label: 'Upcoming', icon: Calendar, count: counts?.upcoming },
     { key: 'someday', label: 'Someday', icon: Moon, count: counts?.someday },
+    { key: 'review', label: 'Review', icon: Mail, count: pendingReview },
     { key: 'completed', label: 'Completed', icon: CheckCircle2, count: counts?.completed },
   ];
 
@@ -114,6 +116,13 @@ export default function Sidebar() {
       </nav>
 
       <div className="mt-4 border-t border-[color:var(--border-soft)] pt-3">
+        <button
+          onClick={() => setSettingsOpen(true)}
+          className="mb-2 flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[13px] text-[color:var(--text-mute)] hover:bg-[color:var(--surface-raised)]/60 hover:text-[color:var(--text)]"
+        >
+          <Settings size={14} className="opacity-70" />
+          Settings
+        </button>
         <div className="mono text-[10px] text-[color:var(--text-faint)]">
           ⌘K palette · N new · A agent
         </div>

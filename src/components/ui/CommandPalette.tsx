@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useAppStore } from '../../stores/app';
 import { db } from '../../db/db';
-import { ArrowRight, Calendar, Inbox, Sparkles, Moon, CheckCircle2 } from 'lucide-react';
+import { ArrowRight, Calendar, Inbox, Sparkles, Moon, CheckCircle2, Mail, Settings } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 
@@ -12,6 +12,7 @@ export default function CommandPalette() {
   const setActiveList = useAppStore((s) => s.setActiveList);
   const toggleTheme = useAppStore((s) => s.toggleTheme);
   const toggleAgent = useAppStore((s) => s.toggleAgent);
+  const setSettingsOpen = useAppStore((s) => s.setSettingsOpen);
   const [q, setQ] = useState('');
   const [idx, setIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -25,10 +26,12 @@ export default function CommandPalette() {
   }, [open]);
 
   const items = [
-    { id: 'today', label: 'Go to Today', icon: Sparkles, run: () => setActiveList('today') },
+    { id: 'today', label: 'Go to Deadlines', icon: Sparkles, run: () => setActiveList('today') },
     { id: 'inbox', label: 'Go to Inbox', icon: Inbox, run: () => setActiveList('inbox') },
     { id: 'upcoming', label: 'Go to Upcoming', icon: Calendar, run: () => setActiveList('upcoming') },
     { id: 'someday', label: 'Go to Someday', icon: Moon, run: () => setActiveList('someday') },
+    { id: 'review', label: 'Go to Review', icon: Mail, run: () => setActiveList('review') },
+    { id: 'settings', label: 'Open settings', icon: Settings, run: () => setSettingsOpen(true) },
     { id: 'completed', label: 'Go to Completed', icon: CheckCircle2, run: () => setActiveList('completed') },
     { id: 'theme', label: 'Toggle theme', icon: Moon, run: toggleTheme },
     { id: 'agent', label: 'Toggle agent dock', icon: Sparkles, run: toggleAgent },

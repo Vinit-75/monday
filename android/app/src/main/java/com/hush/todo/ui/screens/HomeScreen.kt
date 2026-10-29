@@ -26,6 +26,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -33,7 +34,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hush.todo.ai.AgentStub
+import com.hush.todo.core.DateParser
+import com.hush.todo.core.ParseResult
+import com.hush.todo.core.SecureSettings
+import com.hush.todo.core.SpeechCapture
 import com.hush.todo.data.Repo
+import com.hush.todo.notify.scheduleForTask
 import com.hush.todo.data.entities.TaskStates
 import com.hush.todo.ui.components.AgentRing
 import com.hush.todo.ui.components.GlassSurface
@@ -53,6 +59,7 @@ enum class Tab { Today, Inbox, Upcoming }
 
 @Composable
 fun HomeScreen(repo: Repo, scope: CoroutineScope) {
+    val context = LocalContext.current
     val tasks by repo.tasks().collectAsState(initial = emptyList())
     val projects by repo.projects().collectAsState(initial = emptyList())
     val messages by repo.messages().collectAsState(initial = emptyList())
@@ -61,6 +68,11 @@ fun HomeScreen(repo: Repo, scope: CoroutineScope) {
     var drawerOpen by remember { mutableStateOf(false) }
     var agentOpen by remember { mutableStateOf(false) }
     var listening by remember { mutableStateOf(false) }
+    var settingsOpen by remember { mutableStateOf(false) }
+    var pending by remember { mutableStateOf<ParseResult?>(null) }
+    var notice by remember { mutableStateOf<String?>(null) }
+    val settings = remember { SecureSettings(context) }
+    val speech = remember { SpeechCapture(context) }
 
     val agent = remember { AgentStub(repo) }
 
@@ -73,7 +85,7 @@ fun HomeScreen(repo: Repo, scope: CoroutineScope) {
             c.add(java.util.Calendar.DAY_OF_YEAR, 1); c.timeInMillis
         }
         when (tab) {
-            Tab.Today -> tasks.filter { it.state != TaskStates.DONE && it.dueEpochMs != null && it.dueEpochMs < startOfTomorrow }
+            Tab.Today -> tasks.filter { it.state != TaskStates.DONE && it.dueEpochMs != null }
             Tab.Inbox -> tasks.filter { it.state != TaskStates.DONE && it.projectId == null }
             Tab.Upcoming -> tasks.filter { it.state != TaskStates.DONE && it.dueEpochMs != null && it.dueEpochMs >= startOfTomorrow }
         }.sortedWith(compareBy({ it.priority }, { it.dueEpochMs ?: Long.MAX_VALUE }))
@@ -132,10 +144,18 @@ fun HomeScreen(repo: Repo, scope: CoroutineScope) {
             }
 
             // Quick capture bar
+            notice?.let {
+                Text(it, color = Color.White.copy(0.8f), fontSize = 12.sp, modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp), fontFamily = Inter)
+            }
+
             QuickCaptureBar(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                 onSubmit = { text ->
-                    scope.launch { repo.addTask(agent.parseCapture(text)) }
+                    scope.launch {
+                        val t = agent.parseCapture(text)
+                        repo.addTask(t)
+                        scheduleForTask(context, t)
+                    }
                 },
             )
 
@@ -157,6 +177,35 @@ fun HomeScreen(repo: Repo, scope: CoroutineScope) {
                             Text("Tap the mic and talk, or type above.", color = Color.White.copy(alpha = 0.55f), fontSize = 12.sp, fontFamily = Inter)
                         }
                     }
+                } else if (tab == Tab.Today) {
+                    val start = run {
+                        val c = java.util.Calendar.getInstance()
+                        c.set(java.util.Calendar.HOUR_OF_DAY, 0); c.set(java.util.Calendar.MINUTE, 0)
+                        c.set(java.util.Calendar.SECOND, 0); c.set(java.util.Calendar.MILLISECOND, 0)
+                        c.timeInMillis
+                    }
+                    val weekEnd = start + 7L * 24 * 60 * 60 * 1000
+                    val overdue = filtered.filter { it.dueEpochMs != null && it.dueEpochMs!! < start }
+                    val week = filtered.filter { val d = it.dueEpochMs ?: return@filter false; d >= start && d < weekEnd }
+                    val later = filtered.filter { (it.dueEpochMs ?: 0) >= weekEnd }
+                    listOf("Overdue" to overdue, "Due this week" to week, "Upcoming" to later).forEach { (label, list) ->
+                        item {
+                            Text(label, color = Color.White.copy(0.45f), fontSize = 10.sp, fontFamily = FragmentMono, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
+                        }
+                        items(list, key = { it.id }) { task ->
+                            val project = projects.firstOrNull { it.id == task.projectId }
+                            TaskRow(
+                                task = task,
+                                projectName = project?.name,
+                                projectEmoji = project?.emoji,
+                                onToggle = { scope.launch { repo.toggleDone(task) } },
+                                onSnooze = { scope.launch { repo.snooze(task.id, System.currentTimeMillis() + 60L * 60 * 1000) } },
+                                onDelete = { scope.launch { repo.deleteTask(task.id) } },
+                                onAgentAction = { kind -> scope.launch { agent.runOnTask(task, kind) } },
+                                onApprove = { scope.launch { repo.updateTask(task.copy(state = TaskStates.TODO, agentStatus = null, agentOutput = null, agentLastMessage = null, updatedMs = System.currentTimeMillis())) } },
+                            )
+                        }
+                    }
                 } else {
                     items(filtered, key = { it.id }) { task ->
                         val project = projects.firstOrNull { it.id == task.projectId }
@@ -165,6 +214,8 @@ fun HomeScreen(repo: Repo, scope: CoroutineScope) {
                             projectName = project?.name,
                             projectEmoji = project?.emoji,
                             onToggle = { scope.launch { repo.toggleDone(task) } },
+                            onSnooze = { scope.launch { repo.snooze(task.id, System.currentTimeMillis() + 60L * 60 * 1000) } },
+                            onDelete = { scope.launch { repo.deleteTask(task.id) } },
                             onAgentAction = { kind -> scope.launch { agent.runOnTask(task, kind) } },
                             onApprove = { scope.launch { repo.updateTask(task.copy(state = TaskStates.TODO, agentStatus = null, agentOutput = null, agentLastMessage = null, updatedMs = System.currentTimeMillis())) } },
                         )
@@ -183,8 +234,27 @@ fun HomeScreen(repo: Repo, scope: CoroutineScope) {
             onTab = { tab = it; agentOpen = false },
             onAgent = { agentOpen = !agentOpen },
             onMic = {
-                listening = !listening
-                scope.launch { kotlinx.coroutines.delay(1600); listening = false }
+                if (listening) {
+                    speech.stop { text, conf ->
+                        listening = false
+                        val parsed = DateParser.parse(text)
+                        when (parsed.intent) {
+                            "query_week" -> {
+                                val n = filtered.size
+                                notice = "$n due in this list"
+                            }
+                            "complete" -> {
+                                val hit = tasks.firstOrNull { it.state != TaskStates.DONE && it.title.contains(parsed.completeQuery ?: "", true) }
+                                if (hit != null) scope.launch { repo.toggleDone(hit) }
+                                notice = if (hit != null) "Marked done: ${hit.title}" else "Not found"
+                            }
+                            else -> pending = parsed.copy(confidence = if (conf < 0.55f) 0.4f else parsed.confidence)
+                        }
+                    }
+                } else {
+                    listening = true
+                    speech.start(settings.language)
+                }
             },
         )
 
@@ -192,6 +262,7 @@ fun HomeScreen(repo: Repo, scope: CoroutineScope) {
             NavDrawer(
                 projects = projects,
                 onProject = { },
+                onSettings = { drawerOpen = false; settingsOpen = true },
                 onDismiss = { drawerOpen = false },
             )
         }
@@ -206,6 +277,54 @@ fun HomeScreen(repo: Repo, scope: CoroutineScope) {
                 onSend = { text -> scope.launch { agent.chat(text) } },
                 onClose = { agentOpen = false },
             )
+        }
+
+        pending?.let { p ->
+            ConfirmSheet(
+                pending = p,
+                onSave = {
+                    scope.launch {
+                        val t = agent.parseCapture(p.title)
+                        val saved = t.copy(
+                            title = p.title.ifBlank { t.title },
+                            dueEpochMs = p.dueMs ?: t.dueEpochMs,
+                            source = "voice",
+                            confidence = p.confidence,
+                            needsReview = p.needsReview,
+                        )
+                        repo.addTask(saved)
+                        scheduleForTask(context, saved)
+                        pending = null
+                    }
+                },
+                onDismiss = { pending = null },
+            )
+        }
+
+        if (settingsOpen) {
+            SettingsScreen(settings = settings, onClose = { settingsOpen = false })
+        }
+    }
+}
+
+@Composable
+private fun ConfirmSheet(pending: ParseResult, onSave: () -> Unit, onDismiss: () -> Unit) {
+    Box(Modifier.fillMaxSize().background(Color(0x99000000)), contentAlignment = Alignment.Center) {
+        GlassSurface(shape = RoundedCornerShape(20.dp), strong = true, modifier = Modifier.padding(24.dp).fillMaxWidth()) {
+            Column(Modifier.padding(20.dp)) {
+                Text("Confirm before saving", color = Color.White.copy(0.5f), fontSize = 10.sp, fontFamily = FragmentMono)
+                if (pending.needsReview) Text("needs review", color = HushColors.AgentGold, fontSize = 11.sp, fontFamily = Inter)
+                Spacer(Modifier.height(8.dp))
+                Text(pending.title.ifBlank { "Untitled" }, color = Color.White, style = HushType.DisplayMedium)
+                pending.dueMs?.let {
+                    Text(SimpleDateFormat("EEE d MMM, HH:mm", Locale.getDefault()).format(Date(it)), color = Color.White.copy(0.7f), fontSize = 12.sp, fontFamily = FragmentMono)
+                }
+                Spacer(Modifier.height(16.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = onSave) { Text("Save") }
+                    TextButton(onClick = onDismiss) { Text("Dismiss", color = Color.White) }
+                }
+            }
         }
     }
 }

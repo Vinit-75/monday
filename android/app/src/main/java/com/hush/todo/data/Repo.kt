@@ -33,6 +33,13 @@ class Repo(
         tasks.update(next); return next
     }
 
+    suspend fun snooze(id: String, untilMs: Long) {
+        val t = tasks.get(id) ?: return
+        tasks.update(t.copy(dueEpochMs = untilMs, updatedMs = System.currentTimeMillis(), state = TaskStates.TODO, completedMs = null))
+    }
+
+    suspend fun tasksSnapshot(): List<TaskEntity> = tasks.getAll()
+
     suspend fun hasProjects(): Boolean = projects.count() > 0
 
     internal suspend fun bulkSeedProjects(ps: List<ProjectEntity>) = projects.upsertAll(ps)

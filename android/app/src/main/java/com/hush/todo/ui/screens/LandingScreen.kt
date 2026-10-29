@@ -195,7 +195,7 @@ private fun AppPreviewCard() {
                 Text("09:41", color = Color.White.copy(alpha = 0.7f), fontSize = 11.sp, fontFamily = FragmentMono)
             }
             Spacer(Modifier.height(10.dp))
-            // Quick-add stub
+            // Capture field preview
             Box(
                 Modifier
                     .fillMaxWidth()

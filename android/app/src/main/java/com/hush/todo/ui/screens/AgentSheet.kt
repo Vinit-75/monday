@@ -79,7 +79,7 @@ fun AgentSheet(
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Text("Agent", color = Color.White, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 14.sp)
-                    Text("1-to-1 · stubbed demo", color = Color.White.copy(alpha = 0.5f), fontSize = 10.sp, fontFamily = FragmentMono)
+                    Text("reads your real list", color = Color.White.copy(alpha = 0.5f), fontSize = 10.sp, fontFamily = FragmentMono)
                 }
                 IconButton(onClick = onClose) {
                     Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White, modifier = Modifier.size(16.dp))

@@ -6,12 +6,14 @@ import clsx from 'clsx';
 import { db } from '../../db/db';
 import { sendChat } from '../../ai/agent';
 import { useAppStore } from '../../stores/app';
+import { usePushToTalk } from '../../hooks/usePushToTalk';
+import TranscriptFallback from '../tasks/TranscriptFallback';
 import { format } from 'date-fns';
 
 export default function AgentDock() {
   const [input, setInput] = useState('');
   const [thinking, setThinking] = useState(false);
-  const [listening, setListening] = useState(false);
+  const ptt = usePushToTalk();
   const scrollRef = useRef<HTMLDivElement>(null);
   const setOpen = useAppStore((s) => s.setAgentOpen);
 
@@ -28,28 +30,24 @@ export default function AgentDock() {
       await db.messages.put({
         id: 'seed-welcome',
         role: 'agent',
-        text: "I'm here when you need me. Tap the mic and tell me what's on your plate — I'll take anything I can.",
+        text: 'Say a deadline and I’ll save it. Ask what’s due this week, or tell me to mark something done.',
         createdAt: new Date().toISOString(),
       });
     })();
   }, []);
 
-  async function send() {
-    const t = input.trim(); if (!t) return;
+  async function send(raw?: string) {
+    const t = (raw ?? input).trim(); if (!t) return;
     setInput(''); setThinking(true);
     await sendChat(t);
     setThinking(false);
   }
 
   function toggleMic() {
-    setListening((v) => !v);
-    setTimeout(() => {
-      setInput((p) => p || 'Plan my day');
-      setListening(false);
-    }, 1500);
+    void ptt.toggle();
   }
 
-  const suggestions = ['Plan my day', 'Research the Thai spot', 'Draft the reply to Priya', 'What should I do first?'];
+  const suggestions = ["What's due this week?", 'What should I do first?', 'Anything overdue?'];
 
   return (
     <motion.aside
@@ -66,7 +64,7 @@ export default function AgentDock() {
           </div>
           <div>
             <div className="text-sm font-medium">Agent</div>
-            <div className="mono text-[10px] text-[color:var(--text-faint)]">1-to-1 · stubbed demo</div>
+            <div className="mono text-[10px] text-[color:var(--text-faint)]">reads your real list</div>
           </div>
         </div>
         <button onClick={() => setOpen(false)} className="grid h-7 w-7 place-items-center rounded-md hover:bg-[color:var(--surface-raised)]">
@@ -113,7 +111,7 @@ export default function AgentDock() {
           {suggestions.map((s) => (
             <button
               key={s}
-              onClick={() => { setInput(s); setTimeout(send, 50); }}
+              onClick={() => { void send(s); }}
               className="chip hover:border-[color:var(--border-ring)]"
             >
               {s}
@@ -128,24 +126,24 @@ export default function AgentDock() {
             onClick={toggleMic}
             className={clsx(
               'relative grid h-9 w-9 shrink-0 place-items-center rounded-full transition',
-              listening
+              ptt.listening
                 ? 'bg-amber-200/25 text-amber-100'
                 : 'bg-[color:var(--surface-strong)] hover:bg-black/40'
             )}
             aria-label="Voice"
           >
-            {listening && <span className="agent-ring rounded-full" />}
+            {ptt.listening && <span className="agent-ring rounded-full" />}
             <Mic size={14} />
           </button>
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') send(); }}
+            onKeyDown={(e) => { if (e.key === 'Enter') void send(); }}
             placeholder="Ask, or just say it…"
             className="flex-1 bg-transparent px-1 text-sm outline-none placeholder:text-[color:var(--text-faint)]"
           />
           <button
-            onClick={send}
+            onClick={() => { void send(); }}
             disabled={!input.trim()}
             className="grid h-8 w-8 place-items-center rounded-full bg-brand-primary text-white disabled:opacity-30"
             aria-label="Send"
@@ -153,7 +151,9 @@ export default function AgentDock() {
             <SendHorizontal size={13} />
           </button>
         </div>
+        {ptt.notice && <div className="px-4 pb-3 text-xs text-[color:var(--text-mute)]">{ptt.notice}</div>}
       </div>
+      <TranscriptFallback open={ptt.needTranscript} onClose={() => ptt.setNeedTranscript(false)} />
     </motion.aside>
   );
 }

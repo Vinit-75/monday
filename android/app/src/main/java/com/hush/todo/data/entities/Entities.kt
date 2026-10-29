@@ -41,6 +41,10 @@ data class TaskEntity(
     val createdMs: Long,
     val updatedMs: Long,
     val completedMs: Long? = null,
+    val source: String = "manual",
+    val sourceRef: String? = null,
+    val confidence: Float = 1f,
+    val needsReview: Boolean = false,
 )
 
 @Entity(tableName = "messages")

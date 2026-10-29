@@ -29,6 +29,7 @@ import com.hush.todo.ui.theme.Inter
 fun NavDrawer(
     projects: List<ProjectEntity>,
     onProject: (ProjectEntity) -> Unit,
+    onSettings: () -> Unit = {},
     onDismiss: () -> Unit,
 ) {
     Box(
@@ -79,6 +80,13 @@ fun NavDrawer(
                 }
             }
             Spacer(Modifier.weight(1f))
+            Text(
+                "Settings",
+                color = Color.White.copy(alpha = 0.85f),
+                fontSize = 14.sp,
+                fontFamily = Inter,
+                modifier = Modifier.clickable { onSettings() }.padding(8.dp),
+            )
             Text("v0.1.0", color = Color.White.copy(alpha = 0.3f), fontSize = 10.sp, fontFamily = FragmentMono)
         }
     }

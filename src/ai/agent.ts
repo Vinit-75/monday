@@ -1,35 +1,15 @@
-// Stub agent — same interface we'll implement against OpenAI/Claude later.
-// Everything the UI consumes goes through here.
-
 import { nanoid } from 'nanoid';
+import { format } from 'date-fns';
 import { db } from '../db/db';
-import type { Task, ChatMessage } from '../lib/types';
+import { taskStore } from '../db/taskStore';
+import { llmClient } from '../core/llmClient';
+import { parseUtterance } from '../lib/parser';
 import { parseCapture } from '../lib/nlp';
+import { fuzzyFindTask } from '../core/voice';
+import { groupDeadlines } from '../lib/parser';
+import type { Task, ChatMessage } from '../lib/types';
 
 const now = () => new Date().toISOString();
-
-const CANNED_REPLIES: Record<string, string[]> = {
-  default: [
-    "Here's what I'm seeing: 4 tasks for today, 2 overdue. Want me to re-prioritize?",
-    "I can take that one — researching now.",
-    "Done. Dropped the draft into the task notes.",
-    "I’d start with the quarterly review. Smaller stuff can wait.",
-  ],
-  plan: [
-    "Blocked out 9–11am for the quarterly review, 2–3pm for Priya’s reply, 6pm for mom. Does that work?",
-  ],
-  research: [
-    "Pulled 3 options under a 15-minute walk, each under $30/person. Dropped them into the task.",
-  ],
-  draft: [
-    "Draft is in the notes. Keeping tone warm but direct. Say the word and I’ll send it.",
-  ],
-};
-
-function canned(category: keyof typeof CANNED_REPLIES = 'default'): string {
-  const bucket = CANNED_REPLIES[category];
-  return bucket[Math.floor(Math.random() * bucket.length)];
-}
 
 export interface AgentReply {
   text: string;
@@ -38,21 +18,53 @@ export interface AgentReply {
 
 export const agent = {
   async ask(input: string, _ctx?: unknown): Promise<AgentReply> {
-    await delay(400 + Math.random() * 600);
-    const lower = input.toLowerCase();
-    let category: AgentReply['category'] = 'default';
-    if (/plan|schedul|order|priorit/.test(lower)) category = 'plan';
-    else if (/find|look up|research|options|recommend/.test(lower)) category = 'research';
-    else if (/draft|write|reply|email/.test(lower)) category = 'draft';
-    return { text: canned(category), category };
+    const tasks = await db.tasks.toArray();
+    const parsed = parseUtterance(input);
+    if (parsed.intent === 'query_week') {
+      return { text: weekSummary(tasks), category: 'default' };
+    }
+    if (parsed.intent === 'complete') {
+      const hit = fuzzyFindTask(tasks, parsed.completeQuery || parsed.title);
+      if (hit) {
+        await taskStore.complete(hit.id);
+        return { text: `Marked done: ${hit.title}`, category: 'default' };
+      }
+      return { text: `I couldn't find “${parsed.completeQuery || parsed.title}” in your open tasks.`, category: 'default' };
+    }
+    if (parsed.intent === 'add' && parsed.title && (parsed.due || parsed.confidence >= 0.65)) {
+      const cap = parseCapture(input);
+      const task = await taskStore.add({
+        title: cap.title,
+        notes: '',
+        projectId: null,
+        tags: cap.tags,
+        priority: cap.priority,
+        due: cap.due,
+        reminders: [],
+        recurrence: null,
+        parentId: null,
+        estimateMinutes: null,
+        state: 'todo',
+        agent: null,
+        completedAt: null,
+        source: 'manual',
+        sourceRef: null,
+        confidence: cap.confidence ?? parsed.confidence,
+        needsReview: cap.needsReview ?? parsed.needsReview,
+      });
+      const when = task.due ? ` · ${format(new Date(task.due), 'EEE d MMM, p')}` : '';
+      return { text: `Saved: ${task.title}${when}`, category: 'default' };
+    }
+
+    const llm = await llmClient.generate(chatPrompt(input, tasks));
+    if (llm) return { text: llm, category: 'default' };
+    return { text: localAnswer(input, tasks), category: 'default' };
   },
 
-  async captureFromText(text: string, projectHint?: string | null): Promise<Task> {
+  async captureFromText(text: string, projectHint?: string | null, source: Task['source'] = 'manual'): Promise<Task> {
     const parsed = parseCapture(text);
     const projectId = await resolveProject(parsed.projectHint ?? projectHint ?? null);
-    const t = now();
-    const task: Task = {
-      id: nanoid(10),
+    return taskStore.add({
       title: parsed.title,
       notes: '',
       projectId,
@@ -65,11 +77,12 @@ export const agent = {
       estimateMinutes: null,
       state: 'todo',
       agent: null,
-      order: Date.now(),
-      createdAt: t, updatedAt: t, completedAt: null,
-    };
-    await db.tasks.add(task);
-    return task;
+      completedAt: null,
+      source,
+      sourceRef: null,
+      confidence: parsed.confidence ?? 1,
+      needsReview: parsed.needsReview ?? false,
+    });
   },
 
   async runOnTask(task: Task, kind: 'research' | 'draft' | 'plan'): Promise<void> {
@@ -78,41 +91,49 @@ export const agent = {
       updatedAt: now(),
       agent: {
         status: 'working',
-        lastMessage: kind === 'research' ? 'Looking things up…' : kind === 'draft' ? 'Drafting…' : 'Planning…',
+        lastMessage: kind === 'research' ? 'Breaking this down…' : kind === 'draft' ? 'Drafting notes…' : 'Scheduling…',
         output: null,
         startedAt: now(),
       },
     });
 
-    await delay(2200 + Math.random() * 1600);
-    const outputs = {
-      research: 'Three options worth looking at — details in the notes.',
-      draft: 'Draft ready — short, warm, direct.',
-      plan: 'Scheduled for a 45-min block tomorrow morning.',
-    };
-    await db.tasks.update(task.id, {
+    if (kind === 'plan') {
+      const due = task.due ? new Date(task.due) : new Date();
+      if (!task.due) {
+        due.setDate(due.getDate() + 1);
+        due.setHours(9, 0, 0, 0);
+      }
+      const iso = due.toISOString();
+      await taskStore.update(task.id, {
+        due: iso,
+        state: 'todo',
+        agent: {
+          status: 'done',
+          lastMessage: `Scheduled ${format(due, 'EEE d MMM, p')}`,
+          output: `Due set to ${format(due, 'EEEE d MMMM, p')}. Reminders will fire 3 days, 1 day and 3 hours before.`,
+          startedAt: now(),
+        },
+      });
+      return;
+    }
+
+    const prompt = kind === 'research'
+      ? `Student deadline: "${task.title}". Due: ${task.due ?? 'unset'}. List 3 concrete next actions, one line each. No fluff.`
+      : `Write a short draft the student can paste for: "${task.title}". Keep it under 80 words.`;
+    const llm = await llmClient.generate(prompt);
+    const output = llm ?? localBreakdown(task.title, kind);
+    await taskStore.update(task.id, {
+      notes: [task.notes, output].filter(Boolean).join('\n\n'),
       state: 'needs_you',
-      updatedAt: now(),
       agent: {
         status: 'needs_you',
-        lastMessage: 'Done — needs your approval.',
-        output: outputs[kind],
+        lastMessage: 'Ready — check the notes.',
+        output,
         startedAt: now(),
       },
     });
   },
 };
-
-async function resolveProject(hint: string | null): Promise<string | null> {
-  if (!hint) return null;
-  const projects = await db.projects.toArray();
-  const found = projects.find((p) => p.name.toLowerCase().startsWith(hint.toLowerCase()));
-  return found?.id ?? null;
-}
-
-function delay(ms: number) {
-  return new Promise((r) => setTimeout(r, ms));
-}
 
 export async function sendChat(text: string): Promise<ChatMessage[]> {
   const t = now();
@@ -122,4 +143,56 @@ export async function sendChat(text: string): Promise<ChatMessage[]> {
   const agentMsg: ChatMessage = { id: nanoid(10), role: 'agent', text: reply.text, createdAt: now() };
   await db.messages.add(agentMsg);
   return [userMsg, agentMsg];
+}
+
+function weekSummary(tasks: Task[]): string {
+  const g = groupDeadlines(tasks);
+  const lines = g.thisWeek.slice(0, 8).map((t) => `• ${t.title}${t.due ? ` (${format(new Date(t.due), 'EEE p')})` : ''}`);
+  if (g.thisWeek.length === 0) return 'Nothing due this week.';
+  return `${g.thisWeek.length} due this week:\n${lines.join('\n')}`;
+}
+
+function localAnswer(input: string, tasks: Task[]): string {
+  const open = tasks.filter((t) => t.state !== 'done');
+  const g = groupDeadlines(open);
+  const lower = input.toLowerCase();
+  if (/overdue/.test(lower)) {
+    if (!g.overdue.length) return 'Nothing overdue.';
+    return `Overdue (${g.overdue.length}):\n${g.overdue.map((t) => `• ${t.title}`).join('\n')}`;
+  }
+  if (/first|priorit|today|start/.test(lower)) {
+    const next = [...g.overdue, ...g.thisWeek][0];
+    if (!next) return 'Your list is clear. Add a deadline when you have one.';
+    return `Start with: ${next.title}${next.due ? ` · ${format(new Date(next.due), 'EEE p')}` : ''}`;
+  }
+  return `Open: ${open.length}. Overdue ${g.overdue.length}, this week ${g.thisWeek.length}, later ${g.upcoming.length}. Say a deadline to save it, or ask what's due this week.`;
+}
+
+function localBreakdown(title: string, kind: 'research' | 'draft'): string {
+  if (kind === 'draft') {
+    return `Re: ${title}\n\nHi — flagging this deadline. I’ll send the work by the due time. Let me know if the scope changed.`;
+  }
+  return `1. Confirm the exact due time for “${title}”.\n2. Gather what’s already done.\n3. Finish the remaining piece and submit.`;
+}
+
+function chatPrompt(input: string, tasks: Task[]): string {
+  const open = tasks.filter((t) => t.state !== 'done').slice(0, 30).map((t) => ({
+    title: t.title,
+    due: t.due,
+    source: t.source,
+  }));
+  return `You help one student with their deadlines. Use only this list. Do not invent tasks.
+Now: ${new Date().toISOString()} tz ${Intl.DateTimeFormat().resolvedOptions().timeZone}
+Tasks: ${JSON.stringify(open)}
+User: ${input}
+Reply in 1-6 short sentences. If they named a new deadline, say you need them to type it in capture so it saves locally.`;
+}
+
+async function resolveProject(hint: string | null): Promise<string | null> {
+  if (!hint) return null;
+  const projects = await db.projects.toArray();
+  const byId = projects.find((p) => p.id === hint);
+  if (byId) return byId.id;
+  const found = projects.find((p) => p.name.toLowerCase().startsWith(hint.toLowerCase()));
+  return found?.id ?? null;
 }

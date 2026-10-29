@@ -10,7 +10,7 @@ import com.hush.todo.data.entities.TaskEntity
 
 @Database(
     entities = [ProjectEntity::class, TaskEntity::class, MessageEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class HushDatabase : RoomDatabase() {

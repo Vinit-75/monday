@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import type { SmartList, ViewMode } from '../lib/types';
+import type { ParseResult, SmartList, ViewMode } from '../lib/types';
+import { loadPublicSettings, type PublicSettings } from '../lib/settings';
 
 interface AppState {
   theme: 'dark' | 'light';
@@ -24,6 +25,19 @@ interface AppState {
 
   commandOpen: boolean;
   setCommandOpen: (b: boolean) => void;
+
+  settingsOpen: boolean;
+  setSettingsOpen: (b: boolean) => void;
+
+  pending: ParseResult | null;
+  pendingTranscript: string;
+  setPending: (p: ParseResult | null, transcript?: string) => void;
+
+  editingId: string | null;
+  setEditingId: (id: string | null) => void;
+
+  settings: PublicSettings;
+  reloadSettings: () => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -43,7 +57,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   search: '',
   setSearch: (s) => set({ search: s }),
 
-  agentOpen: true,
+  agentOpen: false,
   setAgentOpen: (b) => set({ agentOpen: b }),
   toggleAgent: () => set((s) => ({ agentOpen: !s.agentOpen })),
 
@@ -53,4 +67,17 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   commandOpen: false,
   setCommandOpen: (b) => set({ commandOpen: b }),
+
+  settingsOpen: false,
+  setSettingsOpen: (b) => set({ settingsOpen: b }),
+
+  pending: null,
+  pendingTranscript: '',
+  setPending: (p, transcript) => set({ pending: p, pendingTranscript: transcript ?? '' }),
+
+  editingId: null,
+  setEditingId: (id) => set({ editingId: id }),
+
+  settings: loadPublicSettings(),
+  reloadSettings: () => set({ settings: loadPublicSettings() }),
 }));
