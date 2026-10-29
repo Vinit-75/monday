@@ -8,3 +8,5 @@ dist-ssr
 .DS_Store
 scratch-refs
 *.tsbuildinfo
+.idea/
+*.zip

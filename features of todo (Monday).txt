@@ -1,0 +1,88 @@
+features of todo (Monday)
+Your message cut off after "f", so I'm assuming you want the full Phase 1 feature list. It follows the architecture we saved, with each feature marked **Must** (needed for the app to be useful), **Should** (add if time allows) or **Later** (deliberately parked).
+
+## 1. Tasks and deadlines (core)
+
+| Feature | Priority |
+|---|---|
+| One-screen list: overdue, due this week, upcoming | Must |
+| Add, edit and delete a task by typing (title, due date and time) | Must |
+| Mark done and snooze | Must |
+| Source label on each task (manual, voice, email, calendar) | Should |
+| Basic priority or "important" flag | Later |
+
+## 2. Reminders
+
+| Feature | Priority |
+|---|---|
+| Automatic notifications at 3 days, 1 day and 3 hours before a deadline | Must |
+| Reminders survive restart and reboot (WorkManager) | Must |
+| Notification actions: Done and Snooze | Should |
+| Daily morning summary ("3 things due this week") | Should |
+
+## 3. Voice
+
+| Feature | Priority |
+|---|---|
+| Push-to-talk button on the main screen | Must |
+| English and Hindi toggle (plus auto) | Must |
+| Voice commands: add a task, "what's due this week?", mark done | Must |
+| Confirmation card before saving (Save / Edit) | Must |
+| Fallback to Groq Whisper on failed or low-confidence recognition | Should |
+| Editable transcript when every layer fails | Must |
+| Works with any dictation keyboard through the normal text field | Must (free, no extra code) |
+
+## 4. Parsing
+
+| Feature | Priority |
+|---|---|
+| Rules parser for dates and times in English, Hindi and Hinglish | Must |
+| Resolves relative dates against the phone's clock and timezone | Must |
+| Gemini Flash-Lite fallback for ambiguous text | Should |
+| Confidence score, with low-confidence items flagged "needs review" | Should |
+
+## 5. Email and calendar (read-only)
+
+| Feature | Priority |
+|---|---|
+| Google sign-in with read-only Gmail and Calendar scopes | Must |
+| Filter email by sender domain (university) | Must |
+| Rules-based deadline extraction from filtered email | Must |
+| Calendar events shown as deadlines | Must |
+| Re-sign-in prompt for the weekly token expiry | Must |
+| Review screen for extracted deadlines (accept or reject) | Should |
+| LLM extraction on email | Later (privacy: free tiers) |
+
+## 6. To-do list integration
+
+| Feature | Priority |
+|---|---|
+| Room as the local source of truth, with stable task IDs | Must |
+| One-way mirror to Google Tasks | Later |
+| One-tap "add this deadline to my calendar" | Later |
+
+## 7. Foundations
+
+| Feature | Priority |
+|---|---|
+| `SpeechInput`, `LlmClient` and `TaskStore` interfaces | Must |
+| Settings screen limited to API keys, language and sender filter | Must |
+| Keys in encrypted storage, never in the APK | Must |
+| Local log of transcripts with corrected text (future training data) | Should |
+| Export or backup of tasks | Later |
+
+## Explicitly out of Phase 1
+
+Generic orchestrator, drafting email replies, multi-step workflows, on-device Whisper, model fine-tuning, wake words, background listening, team or shared tasks, Wispr Flow integration, iOS.
+
+## Minimum viable cut
+
+If time gets tight, this is the smallest version that still pays off:
+1. The one-screen list with typed task entry.
+2. Automatic notifications.
+3. Calendar plus filtered-email deadlines through the rules parser.
+4. Push-to-talk with Android's recognizer and a confirmation card.
+
+Everything else is an upgrade to that.
+
+I can turn this into `ROADMAP.md` with the four milestones tied to the Must items, or into a checklist you can tick off as you build.
